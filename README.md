@@ -47,6 +47,32 @@ wrangler.jsonc
 
 `dist/` is generated and gitignored. It is what gets deployed.
 
+## Run it locally
+
+Wrangler needs **Node 22+**; `.node-version` and `engines` pin that. If your
+default `node` is older (this machine has 19), point the shell at a newer one:
+
+```sh
+npm install
+
+# if `node -v` is 22 or newer
+npm run dev
+
+# otherwise, e.g. with a keg-only Homebrew node
+PATH="/opt/homebrew/opt/node@22/bin:$PATH" npm run dev
+```
+
+`npm run dev` builds `dist/`, verifies it, then serves the real Worker on
+<http://localhost:8787> — assets, header rules and markdown negotiation included,
+so `curl -H 'Accept: text/markdown' localhost:8787/p/about/` behaves exactly like
+production. Stop it with `Ctrl-C`.
+
+`build/gen.mjs` and `build/check.mjs` are dependency-free, so they run on any
+Node: `node build/gen.mjs` alone is enough if you only want the static output.
+
+Without Cloudflare at all, any static server over `dist/` works for browsing the
+grid, e.g. `npx serve dist` — you just lose `_headers` and the markdown mirrors.
+
 ## Commands
 
 ```sh
@@ -55,8 +81,6 @@ npm run build      # generate dist/ and verify it
 npm run dev        # build, then serve locally at :8787
 npm run deploy     # build, then deploy to Cloudflare
 ```
-
-Wrangler needs Node 22 or newer.
 
 ## Adding a space
 
