@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<link rel="canonical" href="{{URL}}/">
+<meta name="color-scheme" content="dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{TITLE}}">
+<meta property="og:description" content="{{DESCRIPTION}}">
+<meta property="og:url" content="{{URL}}/">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230a0b0d'/%3E%3Cg fill='%23c9f24b'%3E%3Crect x='3' y='3' width='4' height='4'/%3E%3Crect x='9' y='3' width='4' height='4'/%3E%3Crect x='3' y='9' width='4' height='4'/%3E%3Crect x='9' y='9' width='4' height='4'/%3E%3C/g%3E%3C/svg%3E">
+<script>document.documentElement.classList.add('js')</script>
+<script type="application/ld+json">{{JSONLD}}</script>
+<link rel="stylesheet" href="/app.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<a class="skip" href="#index">Skip to the project index</a>
+
+<main id="viewport" aria-label="Project grid">
+  <div id="track">
+    <div class="lattice" aria-hidden="true"></div>
+  </div>
+  <div class="hud" aria-hidden="true">
+    <p class="hud__readout" id="readout"></p>
+    <p class="hud__hint">arrows / wasd / swipe to move &nbsp;·&nbsp; enter to open</p>
+  </div>
+</main>
+
+<div id="index" class="index">
+  <h1>{{OWNER}}</h1>
+  <p>{{DESCRIPTION}}</p>
+  <ul>
+{{NOSCRIPT}}
+  </ul>
+</div>
+
+<p id="live" class="sr-only" role="status" aria-live="polite"></p>
+<script type="application/json" id="data">{{DATA}}</script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+{
+  "site": {
+    "title": "Gregorio Sigala",
+    "owner": "Gregorio Sigala",
+    "url": "https://portfolio.gasigala.workers.dev",
+    "description": "A navigable two-dimensional grid of projects, experiments, and coursework. Move between spaces with the arrow keys.",
+    "github": "https://github.com/gasigala"
+  },
+  "spaces": [
+    {
+      "id": "about",
+      "x": 0,
+      "y": 0,
+      "kind": "page",
+      "title": "About",
+      "summary": "Software engineer. This site is a grid you can walk around in; every space holds a project.",
+      "tags": ["start here"],
+      "body": [
+        "I build software, mostly in Dart, Python, C, and Java, and I like interfaces that behave like places rather than pages.",
+        "Everything here is a space on a two-dimensional grid. Arrow keys, WASD, or a swipe move you to the nearest space in that direction. Enter opens the space you are standing on.",
+        "Each space has a real URL, so anything you find here can be linked, shared, and read without JavaScript."
+      ]
+    },
+    {
+      "id": "spotify-visualizer",
+      "x": -2,
+      "y": 0,
+      "kind": "project",
+      "title": "Spotify Visualizer",
+      "summary": "A Spotify visualizer written in Flutter. Summer 2021.",
+      "tags": ["Dart", "Flutter", "audio"],
+      "links": [
+        { "label": "Repository", "href": "https://github.com/gasigala/spotify_summer_project_2021" }
+      ],
+      "body": [
+        "A Flutter application that renders a visualization driven by Spotify playback data.",
+        "It was my first attempt at turning live audio state into something you can look at, and the origin of my interest in interfaces that respond continuously rather than on click."
+      ]
+    },
+    {
+      "id": "game-ep",
+      "x": -1,
+      "y": -2,
+      "kind": "project",
+      "title": "gameEp",
+      "summary": "A Java game project. 2023.",
+      "tags": ["Java", "game"],
+      "links": [
+        { "label": "Repository", "href": "https://github.com/gasigala/gameEp" }
+      ],
+      "body": [
+        "A Java game project from 2023, built around a small game loop and hand-rolled rendering.",
+        "Java is still where I go when I want strict types and a long-lived process."
+      ]
+    },
+    {
+      "id": "omok-dart",
+      "x": 1,
+      "y": -2,
+      "kind": "project",
+      "title": "Omok in Dart",
+      "summary": "Omok, the board game known as five-in-a-row, implemented in Dart.",
+      "tags": ["Dart", "games", "algorithms"],
+      "links": [
+        { "label": "Repository", "href": "https://github.com/gasigala/omokDart" }
+      ],
+      "body": [
+        "Omok implemented in Dart with a playable board and win detection.",
+        "Board games are a useful forcing function: the rules are exact, so the code has to be too."
+      ]
+    },
+    {
+      "id": "omok-php",
+      "x": 2,
+      "y": 0,
+      "kind": "project",
+      "title": "Omok in PHP",
+      "summary": "The same game, server-rendered in PHP for a web programming course.",
+      "tags": ["PHP", "web"],
+      "links": [
+        { "label": "Repository", "href": "https://github.com/gasigala/cheon3360omokPHP" }
+      ],
+      "body": [
+        "A server-rendered take on Omok for a web programming course, where the board state lives in the request rather than in a client-side loop.",
+        "Useful contrast with the Dart version: same rules, completely different shape of code."
+      ]
+    },
+    {
+      "id": "slp-b3",
+      "x": -1,
+      "y": 1,
+      "kind": "project",
+      "title": "SLPB3",
+      "summary": "A Python project in the SLP series.",
+      "tags": ["Python"],
+      "links": [
+        { "label": "Repository", "href": "https://github.com/gasigala/SLPB3" }
+      ],
+      "body": [
+        "Python work from the SLP project series.",
+        "Python is where I reach for quick tooling and data work."
+      ]
+    },
+    {
+      "id": "slp-final",
+      "x": 1,
+      "y": 1,
+      "kind": "project",
+      "title": "SLP Final",
+      "summary": "The final project in the SLP series.",
+      "tags": ["coursework"],
+      "links": [
+        { "label": "Repository", "href": "https://github.com/gasigala/slpfinal" }
+      ],
+      "body": [
+        "The final project in the SLP series, where the earlier pieces were put together."
+      ]
+    },
+    {
+      "id": "the-basics",
+      "x": -2,
+      "y": 2,
+      "kind": "project",
+      "title": "the_basics",
+      "summary": "A basic website coded in Flutter.",
+      "tags": ["Dart", "Flutter", "web"],
+      "links": [
+        { "label": "Repository", "href": "https://github.com/gasigala/the_basics" }
+      ],
+      "body": [
+        "An early exercise in shipping a website with Flutter web.",
+        "It aged into a good argument for plain HTML, CSS, and JavaScript when the site is mostly text."
+      ]
+    },
+    {
+      "id": "sps-team-17",
+      "x": 0,
+      "y": 2,
+      "kind": "project",
+      "title": "SPS Team 17",
+      "summary": "A web app coded in Flutter, built with a team.",
+      "tags": ["Dart", "Flutter", "team"],
+      "links": [
+        { "label": "Repository", "href": "https://github.com/gasigala/SPS-Team-17" }
+      ],
+      "body": [
+        "A team web application built in Flutter for a software project course.",
+        "Coordinating a shared codebase is most of the work; the code is the easy part."
+      ]
+    },
+    {
+      "id": "cs4311",
+      "x": 2,
+      "y": 2,
+      "kind": "project",
+      "title": "CS4311 Cyber Ninjas",
+      "summary": "A team project from CS4311, Spring 2023.",
+      "tags": ["team", "coursework"],
+      "links": [
+        { "label": "Repository", "href": "https://github.com/Naive-5-Team5/CS4311_Naive_5CyberNinjas_Spring2023" }
+      ],
+      "body": [
+        "A semester-long team project from CS4311, shared with the Naive-5-Team5 group.",
+        "My contributions were in logging, cleanup, and the shared development workflow."
+      ]
+    }
+  ]
+}
