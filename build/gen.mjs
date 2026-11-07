@@ -3,7 +3,7 @@
 // a machine-readable index, llms.txt, sitemap, robots and a 404 page.
 // No dependencies.
 
-import { readFile, writeFile, mkdir, rm, copyFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm, copyFile, cp, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -87,10 +87,90 @@ async function write(relativePath, contents) {
   await writeFile(target, contents);
 }
 
+/* ------------------------------ covers ------------------------------ */
+
+// A cover is the sleeve for a space: one image that represents the project.
+// Declare `cover` in projects.json to use real artwork; otherwise the build
+// generates a deterministic placeholder so the layout is always exercised.
+
+const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+
+const coverOf = (space) => {
+  const declared = space.cover;
+  return {
+    src: declared ?? `/img/${space.id}.svg`,
+    placeholder: !declared,
+    raster: Boolean(declared) && !declared.endsWith('.svg'),
+    alt: space.coverAlt ?? `${space.title} cover image`,
+  };
+};
+
+const hash = (value) => {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+};
+
+const pad2 = (value) => String(value).padStart(2, '0');
+
+// Four sleeves, picked from the id, so a wall of placeholders is not uniform.
+// The canvas is 1200px but plaques render at ~265px, so every stroke is sized
+// to survive that downscale.
+function sleeveMotif(seed) {
+  const kind = ['hatch', 'arcs', 'dots', 'bars'][seed % 4];
+  const parts = [];
+
+  if (kind === 'hatch') {
+    for (let i = -1200; i < 1200; i += 176) {
+      parts.push(
+        `<line x1="${i}" y1="1200" x2="${i + 1200}" y2="0" stroke="rgba(255,74,23,0.28)" stroke-width="16"/>`,
+      );
+    }
+  } else if (kind === 'arcs') {
+    for (let r = 160; r <= 640; r += 120) {
+      const alpha = r > 460 ? 0.16 : 0.3;
+      parts.push(
+        `<circle cx="600" cy="600" r="${r}" fill="none" stroke="rgba(255,74,23,${alpha})" stroke-width="16"/>`,
+      );
+    }
+  } else if (kind === 'dots') {
+    for (let y = 130; y < 1200; y += 190) {
+      for (let x = 130; x < 1200; x += 190) {
+        parts.push(`<circle cx="${x}" cy="${y}" r="28" fill="rgba(255,74,23,0.26)"/>`);
+      }
+    }
+  } else {
+    for (let i = 0; i < 9; i += 1) {
+      const height = 120 + ((seed >> (i % 16)) % 6) * 110;
+      parts.push(
+        `<rect x="${72 + i * 120}" y="${1140 - height}" width="56" height="${height}" fill="rgba(255,74,23,0.28)"/>`,
+      );
+    }
+  }
+
+  return `<g>${parts.join('')}</g>`;
+}
+
+function placeholderCover(space) {
+  const seed = hash(space.id);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" width="1200" height="1200">
+<rect width="1200" height="1200" fill="#000"/>
+${sleeveMotif(seed)}
+<text x="72" y="1128" font-family="${MONO}" font-size="24" letter-spacing="7" fill="rgba(217,213,204,0.24)">placeholder</text>
+</svg>
+`;
+}
+
 /* ------------------------------ markdown ------------------------------ */
 
 function markdownFor(space) {
+  const cover = coverOf(space);
   const lines = [`# ${space.title}`, '', space.summary, ''];
+  if (cover.raster) lines.push(`![${cover.alt}](${siteUrl}${cover.src})`, '');
   for (const paragraph of space.body ?? []) lines.push(paragraph, '');
   if (space.tags?.length) lines.push(`Tags: ${space.tags.join(', ')}`, '');
   if (space.links?.length) {
@@ -127,6 +207,8 @@ p{margin:0 0 1.1rem;color:#a9a59c}
 .lede{color:var(--ink)}
 h2{margin:2.8rem 0 .7rem;font-size:10px;font-weight:400;letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
 .meta{margin:1.5rem 0 0;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.cover{margin:0 0 2.4rem}
+.cover img{display:block;width:100%;height:auto;border:1px solid var(--line)}
 .links{list-style:none;margin:0;padding:0}
 .links li{border-top:1px solid var(--line);padding:.62rem 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
 .links li:last-child{border-bottom:1px solid var(--line)}
@@ -134,6 +216,7 @@ nav.pager{display:flex;justify-content:space-between;gap:1rem;margin-top:3.5rem;
 `;
 
 function pageJsonLd(space) {
+  const cover = coverOf(space);
   return {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
@@ -143,12 +226,14 @@ function pageJsonLd(space) {
     isPartOf: { '@type': 'CollectionPage', name: site.title, url: `${siteUrl}/` },
     author: { '@type': 'Person', name: site.owner, url: site.github },
     ...(space.tags?.length ? { keywords: space.tags.join(', ') } : {}),
+    ...(cover.raster ? { image: `${siteUrl}${cover.src}` } : {}),
   };
 }
 
 function renderSpacePage(space) {
   const { previous, next } = neighbours.get(space.id);
   const number = ordered.findIndex((entry) => entry.id === space.id) + 1;
+  const cover = coverOf(space);
   const body = (space.body ?? []).map((paragraph) => `      <p>${escapeHtml(paragraph)}</p>`).join('\n');
   const tags = space.tags?.length
     ? `      <p class="meta">${escapeHtml(space.tags.join(' · '))}</p>\n`
@@ -178,6 +263,7 @@ function renderSpacePage(space) {
 <meta property="og:title" content="${escapeHtml(space.title)}">
 <meta property="og:description" content="${escapeHtml(space.summary)}">
 <meta property="og:url" content="${pageUrl(space)}">
+${cover.raster ? `<meta property="og:image" content="${siteUrl}${cover.src}">` : ''}
 <meta name="twitter:card" content="summary">
 <script type="application/ld+json">${scriptJson(pageJsonLd(space))}</script>
 <style>${pageStyles}</style>
@@ -187,10 +273,13 @@ function renderSpacePage(space) {
     <div class="top">
       <a href="/#/${space.id}">← grid</a>
       <span>space ${space.x},${space.y}</span>
-      <span>${String(number).padStart(2, '0')}/${String(ordered.length).padStart(2, '0')}</span>
+      <span>${pad2(number)}/${pad2(ordered.length)}</span>
     </div>
     <h1>${escapeHtml(space.title)}</h1>
     <p class="lede">${escapeHtml(space.summary)}</p>
+    <figure class="cover">
+      <img src="${cover.src}" alt="${escapeHtml(cover.alt)}" width="1200" height="1200" loading="lazy" decoding="async">
+    </figure>
 ${body}
 ${tags}${links}
     <nav class="pager">
@@ -206,6 +295,14 @@ ${tags}${links}
 
 await rm(DIST, { recursive: true, force: true });
 await mkdir(DIST, { recursive: true });
+
+// Anything in public/ is served as-is: real covers, favicons, fonts.
+const PUBLIC = join(ROOT, 'public');
+try {
+  await cp(PUBLIC, DIST, { recursive: true });
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+}
 
 const template = await readFile(join(SRC, 'index.template.html'), 'utf8');
 
@@ -251,6 +348,7 @@ const inlineData = {
     title: space.title,
     summary: space.summary,
     tags: space.tags ?? [],
+    cover: coverOf(space).src,
   })),
 };
 
@@ -271,6 +369,30 @@ for (const space of spaces) {
   await write(`p/${space.id}/index.md`, markdownFor(space));
 }
 
+// Covers: use the declared artwork if it exists on disk, otherwise generate a
+// placeholder sleeve. A declared cover that is missing is a build error.
+for (const [index, space] of ordered.entries()) {
+  const cover = coverOf(space);
+
+  if (cover.placeholder) {
+    await write(`img/${space.id}.svg`, placeholderCover(space));
+    continue;
+  }
+
+  try {
+    await access(join(DIST, cover.src));
+  } catch {
+    errors.push(
+      `spaces[${space.id}].cover "${cover.src}" is declared but the file is not in public/`,
+    );
+  }
+}
+
+if (errors.length) {
+  console.error(`build failed:\n  - ${errors.join('\n  - ')}`);
+  process.exit(1);
+}
+
 await write(
   'api/projects.json',
   `${JSON.stringify(
@@ -278,6 +400,7 @@ await write(
       site: { title: site.title, owner: site.owner, url: `${siteUrl}/` },
       spaces: ordered.map((space) => ({
         ...space,
+        cover: coverOf(space).src,
         url: pageUrl(space),
       })),
     },

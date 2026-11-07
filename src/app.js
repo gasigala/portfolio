@@ -101,6 +101,24 @@ function createNode(space) {
   marker.setAttribute('aria-hidden', 'true');
 
   el.append(number, title, meta, marker);
+
+  if (space.cover) {
+    const cover = document.createElement('img');
+    cover.className = 'space__cover';
+    cover.src = space.cover;
+    cover.alt = '';
+    cover.loading = 'lazy';
+    cover.decoding = 'async';
+    cover.draggable = false;
+
+    const scrim = document.createElement('span');
+    scrim.className = 'space__scrim';
+    scrim.setAttribute('aria-hidden', 'true');
+
+    el.append(cover, scrim);
+    el.classList.add('space--media');
+  }
+
   track.append(el);
   requestAnimationFrame(() => el.classList.add('is-visible'));
   return el;

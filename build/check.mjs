@@ -42,6 +42,18 @@ for (const space of data.spaces) {
   assert(html.includes(`<h1>${space.title}</h1>`), `${space.id}: missing h1`);
   assert(html.includes('<title>'), `${space.id}: missing title`);
 
+  const cover = space.cover ?? `/img/${space.id}.svg`;
+  assert(html.includes(`<img src="${cover}"`), `${space.id}: page does not render its cover`);
+
+  let coverBytes = 0;
+  try {
+    const bytes = await readFile(join(DIST, cover), 'utf8');
+    coverBytes = bytes.length;
+  } catch {
+    failures.push(`${space.id}: cover ${cover} is missing from dist/`);
+  }
+  assert(coverBytes > 200, `${space.id}: cover ${cover} is suspiciously empty`);
+
   const ld = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
   assert(Boolean(ld), `${space.id}: missing JSON-LD`);
   if (ld) {

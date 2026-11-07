@@ -38,6 +38,7 @@ src/
   app.js                 grid engine (camera, virtualization, input)
   worker.js              static assets + markdown negotiation
   _headers               security headers
+public/                  served as-is: real covers, favicons, fonts
 build/
   gen.mjs                projects.json -> dist/
   check.mjs              assertions on the generated output
@@ -82,6 +83,41 @@ required fields, or non-absolute links, and then checks the generated pages.
 The grid is sparse on purpose: a coordinate without a space is empty. It renders
 only the spaces within three cells of where you are standing, so the world can
 grow without slowing down.
+
+## Covers
+
+A cover is the sleeve for a space: one image that stands for the project, the way
+a record has artwork. It is the face of the plaque — dimmed and greyed out until
+you are standing on it, then shown in full colour, which is what makes the grid
+feel lit rather than flat.
+
+Every space gets a cover. If you do not declare one, the build **generates a
+placeholder sleeve** (an abstract motif derived from the id, plus a small
+`placeholder` caption) so the layout is always exercised and you can see at a
+glance which spaces still need real artwork.
+
+To use real artwork, put the file in `public/img/` and point at it:
+
+```json
+{
+  "id": "omok-dart",
+  "cover": "/img/omok-dart.webp",
+  "coverAlt": "The Omok board mid-game, black and white stones on a grid"
+}
+```
+
+- `cover` is a path served from the site root. Square art (1:1) fits best;
+  plaques are ~1:0.9 and use `object-fit: cover`, so edges crop slightly.
+- `coverAlt` is the accessible description. It is used on the space's own page
+  and in the markdown mirror; the grid itself uses an empty `alt` because the
+  link is already labelled.
+- A declared cover that does not exist in `public/` fails the build.
+- `og:image` and the JSON-LD `image` are emitted only for raster covers
+  (`.png`, `.jpg`, `.webp`, …). Placeholders are SVG, and social platforms do not
+  render SVG previews, so declaring no broken preview is better than a broken one.
+
+Covers also appear in `/api/projects.json`, so an agent can find the artwork for
+any space without crawling the grid.
 
 ## Interaction
 
