@@ -1,5 +1,5 @@
-// Grid engine: a camera over a sparse 2D world of project "spaces".
-// No dependencies. Rendering is virtualized to a radius around the focused space.
+// Grid engine: a camera over a sparse 2D world of project spaces.
+// Keyboard-first, virtualized to a radius around the focused space.
 
 const RADIUS = 3; // cells rendered around the focused space
 
@@ -8,28 +8,34 @@ const track = document.getElementById('track');
 const lattice = track.querySelector('.lattice');
 const live = document.getElementById('live');
 const readout = document.getElementById('readout');
+const counter = document.getElementById('counter');
+const clock = document.getElementById('clock');
+const index = document.getElementById('index');
+const indexToggle = document.getElementById('index-toggle');
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
-let spaces = [];
+let spaces = []; // ordered the way the index numbers them
 const byId = new Map();
 const nodes = new Map(); // id -> <a>, only for spaces near the camera
 let focusedId = null;
-let metrics = { w: 320, h: 288, pitchX: 360, pitchY: 328 };
+let metrics = { w: 300, h: 276, pitchX: 340, pitchY: 316 };
+
+const pad = (value) => String(value).padStart(2, '0');
 
 /* ---------------- layout ---------------- */
 
 function measure() {
-  // Size cells so a lane of neighbours is always in view: the grid only reads
-  // as a grid if you can see that there is somewhere to go.
-  const base = Math.min(viewport.clientWidth / 4.4, viewport.clientHeight / 3.4);
-  const w = Math.round(Math.min(Math.max(base, 200), 340));
-  const h = Math.round(w * 0.92);
+  // Size cells so a lane of neighbours is always in frame: an array you cannot
+  // see the edges of does not read as an array.
+  const base = Math.min(viewport.clientWidth / 4.6, viewport.clientHeight / 3.4);
+  const w = Math.round(Math.min(Math.max(base, 190), 330));
+  const h = Math.round(w * 0.9);
   metrics = {
     w,
     h,
-    pitchX: w + Math.round(w * 0.13),
-    pitchY: h + Math.round(h * 0.14),
+    pitchX: w + Math.round(w * 0.15),
+    pitchY: h + Math.round(h * 0.16),
   };
 
   const style = document.documentElement.style;
@@ -38,8 +44,8 @@ function measure() {
   style.setProperty('--pitch-x', `${metrics.pitchX}px`);
   style.setProperty('--pitch-y', `${metrics.pitchY}px`);
 
-  // The lattice is anchored to the world origin at an exact multiple of the
-  // pitch, so its dots land on cell centres without per-frame math.
+  // Anchored to the world origin at an exact multiple of the pitch, so grid
+  // rules land on cell edges with no per-frame maths.
   const kx = Math.ceil(3200 / metrics.pitchX);
   const ky = Math.ceil(3200 / metrics.pitchY);
   lattice.style.left = `${-kx * metrics.pitchX}px`;
@@ -56,8 +62,9 @@ function focused() {
 function applyCamera(animate) {
   const space = focused();
   if (!space) return;
-  const cx = space.x * metrics.pitchX + metrics.w / 2;
-  const cy = space.y * metrics.pitchY + metrics.h / 2;
+  // Centre on the graph-paper square, not the plaque inside it.
+  const cx = space.x * metrics.pitchX + metrics.pitchX / 2;
+  const cy = space.y * metrics.pitchY + metrics.pitchY / 2;
   track.style.transition = animate && !reducedMotion.matches ? '' : 'none';
   track.style.transform =
     `translate3d(${Math.round(viewport.clientWidth / 2 - cx)}px, ` +
@@ -72,41 +79,28 @@ function createNode(space) {
   el.href = `/p/${space.id}/`;
   el.dataset.id = space.id;
   el.setAttribute('aria-label', `${space.title}. Space ${space.x}, ${space.y}. ${space.summary}`);
-  el.style.left = `${space.x * metrics.pitchX}px`;
-  el.style.top = `${space.y * metrics.pitchY}px`;
+  el.style.left = `${space.x * metrics.pitchX + (metrics.pitchX - metrics.w) / 2}px`;
+  el.style.top = `${space.y * metrics.pitchY + (metrics.pitchY - metrics.h) / 2}px`;
   el.style.width = `${metrics.w}px`;
   el.style.height = `${metrics.h}px`;
 
-  const coords = document.createElement('span');
-  coords.className = 'space__coords';
-  coords.textContent = `${space.x}, ${space.y}`;
+  const number = document.createElement('span');
+  number.className = 'space__index';
+  number.textContent = pad(space.n);
 
   const title = document.createElement('h2');
   title.className = 'space__title';
   title.textContent = space.title;
 
-  const summary = document.createElement('p');
-  summary.className = 'space__summary';
-  summary.textContent = space.summary;
+  const meta = document.createElement('span');
+  meta.className = 'space__meta';
+  meta.textContent = (space.tags ?? []).join(' · ');
 
-  el.append(coords, title, summary);
+  const marker = document.createElement('span');
+  marker.className = 'space__marker';
+  marker.setAttribute('aria-hidden', 'true');
 
-  if (space.tags?.length) {
-    const tags = document.createElement('ul');
-    tags.className = 'space__tags';
-    for (const tag of space.tags) {
-      const item = document.createElement('li');
-      item.textContent = tag;
-      tags.append(item);
-    }
-    el.append(tags);
-  }
-
-  const open = document.createElement('span');
-  open.className = 'space__open';
-  open.textContent = 'open';
-  el.append(open);
-
+  el.append(number, title, meta, marker);
   track.append(el);
   requestAnimationFrame(() => el.classList.add('is-visible'));
   return el;
@@ -142,10 +136,11 @@ function syncFocus() {
     el.classList.toggle('is-focused', on);
     el.tabIndex = on ? 0 : -1;
   }
+
   const space = focused();
-  if (space) {
-    readout.textContent = `space ${space.x}, ${space.y} — ${space.title}`;
-  }
+  if (!space) return;
+  readout.textContent = `space ${space.x},${space.y} — ${space.title}`;
+  counter.textContent = `${pad(space.n)}/${pad(spaces.length)}`;
 }
 
 function rebuild() {
@@ -171,7 +166,7 @@ function nextInDirection(dx, dy) {
     if (Math.sign(forward) !== (dx !== 0 ? dx : dy)) continue;
     if (Math.abs(forward) < Math.abs(sideways)) continue;
 
-    // Weight the sideways offset so a straight neighbour beats a diagonal one.
+    // Weighted so a straight neighbour beats a diagonal one.
     const score = Math.abs(forward) + Math.abs(sideways) * 2.5;
     if (score < bestScore) {
       bestScore = score;
@@ -199,6 +194,37 @@ function focusSpace(id, options = {}) {
   if (options.focusDom) nodes.get(id)?.focus({ preventScroll: true });
 }
 
+/* ---------------- index overlay ---------------- */
+
+function setIndexOpen(open) {
+  index.classList.toggle('is-open', open);
+  indexToggle.setAttribute('aria-expanded', String(open));
+  if (open) {
+    index.querySelector('a')?.focus();
+  } else {
+    indexToggle.focus({ preventScroll: true });
+  }
+}
+
+indexToggle.addEventListener('click', () => {
+  setIndexOpen(!index.classList.contains('is-open'));
+});
+
+// The skip link exists for keyboard users; with JS the index is a panel, so
+// opening it is the useful equivalent of jumping to the anchor.
+document.querySelector('.skip').addEventListener('click', (event) => {
+  event.preventDefault();
+  setIndexOpen(true);
+});
+
+index.addEventListener('click', (event) => {
+  const link = event.target.closest('a[data-id]');
+  if (!link) return;
+  event.preventDefault();
+  setIndexOpen(false);
+  focusSpace(link.dataset.id, { focusDom: true });
+});
+
 /* ---------------- input ---------------- */
 
 const KEYS = {
@@ -212,12 +238,28 @@ document.addEventListener('keydown', (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
 
   const key = event.key.toLowerCase();
+
+  if (key === 'escape') {
+    if (index.classList.contains('is-open')) {
+      event.preventDefault();
+      setIndexOpen(false);
+    }
+    return;
+  }
+
+  if (key === 'i') {
+    event.preventDefault();
+    setIndexOpen(!index.classList.contains('is-open'));
+    return;
+  }
+
   const direction = KEYS[key];
   if (direction) {
     event.preventDefault();
     move(direction[0], direction[1]);
     return;
   }
+
   if (key === 'home') {
     event.preventDefault();
     focusSpace(byId.get('about') ? 'about' : spaces[0].id, { focusDom: true });
@@ -272,6 +314,13 @@ viewport.addEventListener('pointerup', (event) => {
   else move(0, Math.sign(dy));
 });
 
+// Deep links can change without a reload (same-document navigation), so the
+// camera has to follow the hash, not just read it at boot.
+window.addEventListener('hashchange', () => {
+  const space = initialSpace();
+  if (space && space.id !== focusedId) focusSpace(space.id);
+});
+
 let resizeTimer = 0;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
@@ -284,15 +333,18 @@ window.addEventListener('resize', () => {
 
 /* ---------------- boot ---------------- */
 
+function tickClock() {
+  const now = new Date();
+  clock.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
 function initialSpace() {
   const raw = decodeURIComponent(location.hash.replace(/^#\/?/, '')).trim();
   if (raw) {
     if (byId.has(raw)) return byId.get(raw);
     const coords = raw.match(/^(-?\d+),(-?\d+)$/);
     if (coords) {
-      const match = spaces.find(
-        (s) => s.x === Number(coords[1]) && s.y === Number(coords[2]),
-      );
+      const match = spaces.find((s) => s.x === Number(coords[1]) && s.y === Number(coords[2]));
       if (match) return match;
     }
   }
@@ -311,9 +363,10 @@ function boot() {
 
   for (const space of spaces) byId.set(space.id, space);
 
-  const start = initialSpace();
-  focusedId = start.id;
+  tickClock();
+  setInterval(tickClock, 15000);
 
+  focusedId = initialSpace().id;
   measure();
   applyCamera(false);
   renderVisible();

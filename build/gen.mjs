@@ -114,25 +114,23 @@ function indexMarkdown() {
 /* ------------------------------ html ------------------------------ */
 
 const pageStyles = `
-:root{--bg:#0a0b0d;--fg:#e9e9e6;--muted:#80848d;--line:#1d2026;--accent:#c9f24b}
+:root{--bg:#000;--ink:#d9d5cc;--muted:rgba(217,213,204,.42);--faint:rgba(217,213,204,.16);--line:rgba(217,213,204,.14);--accent:#ff4a17;--mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:400 16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-main{max-width:38rem;margin:0 auto;padding:5rem 1.5rem 7rem}
-a{color:var(--fg);text-decoration:none;border-bottom:1px solid #2c3138}
-a:hover{color:var(--accent);border-color:var(--accent)}
-.back{font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border:0}
-.back:hover{color:var(--accent)}
-h1{font-size:2rem;line-height:1.15;letter-spacing:-.02em;margin:1.6rem 0 .6rem}
-h2{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:2.6rem 0 .9rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-p{margin:0 0 1rem;color:#c6c9d0}
-.coords{font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-.tags{display:flex;flex-wrap:wrap;gap:.35rem;list-style:none;padding:0;margin:1.4rem 0 0}
-.tags li{font:500 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;color:#6f8a24;border:1px solid #23282f;border-radius:999px;padding:.3rem .5rem}
-.links{list-style:none;padding:0;margin:0}
-.links li{padding:.55rem 0;border-top:1px solid var(--line)}
-nav.pager{display:flex;justify-content:space-between;gap:1rem;margin-top:4rem;padding-top:1.4rem;border-top:1px solid var(--line);font-size:.85rem;color:var(--muted)}
-nav.pager a{border:0;color:var(--muted)}
-nav.pager a:hover{color:var(--accent)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 13px/1.85 var(--mono);-webkit-font-smoothing:antialiased}
+main{max-width:40rem;margin:0 auto;padding:3.2rem 1.2rem 6rem}
+a{color:inherit;text-decoration:none}
+a:hover{color:var(--accent)}
+.top{display:flex;justify-content:space-between;gap:1rem;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--line);padding-bottom:.8rem}
+.top a:hover{color:var(--accent)}
+h1{margin:2.2rem 0 .9rem;font-size:21px;line-height:1.4;font-weight:400;letter-spacing:.09em;text-transform:uppercase}
+p{margin:0 0 1.1rem;color:#a9a59c}
+.lede{color:var(--ink)}
+h2{margin:2.8rem 0 .7rem;font-size:10px;font-weight:400;letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
+.meta{margin:1.5rem 0 0;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.links{list-style:none;margin:0;padding:0}
+.links li{border-top:1px solid var(--line);padding:.62rem 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.links li:last-child{border-bottom:1px solid var(--line)}
+nav.pager{display:flex;justify-content:space-between;gap:1rem;margin-top:3.5rem;padding-top:1rem;border-top:1px solid var(--line);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 `;
 
 function pageJsonLd(space) {
@@ -150,9 +148,10 @@ function pageJsonLd(space) {
 
 function renderSpacePage(space) {
   const { previous, next } = neighbours.get(space.id);
+  const number = ordered.findIndex((entry) => entry.id === space.id) + 1;
   const body = (space.body ?? []).map((paragraph) => `      <p>${escapeHtml(paragraph)}</p>`).join('\n');
   const tags = space.tags?.length
-    ? `      <ul class="tags">\n${space.tags.map((tag) => `        <li>${escapeHtml(tag)}</li>`).join('\n')}\n      </ul>\n`
+    ? `      <p class="meta">${escapeHtml(space.tags.join(' · '))}</p>\n`
     : '';
   const links = space.links?.length
     ? `      <h2>Links</h2>\n      <ul class="links">\n${space.links
@@ -185,10 +184,13 @@ function renderSpacePage(space) {
 </head>
 <body>
   <main>
-    <a class="back" href="/#/${space.id}">← back to the grid</a>
-    <p class="coords">space ${space.x}, ${space.y}</p>
+    <div class="top">
+      <a href="/#/${space.id}">← grid</a>
+      <span>space ${space.x},${space.y}</span>
+      <span>${String(number).padStart(2, '0')}/${String(ordered.length).padStart(2, '0')}</span>
+    </div>
     <h1>${escapeHtml(space.title)}</h1>
-    <p>${escapeHtml(space.summary)}</p>
+    <p class="lede">${escapeHtml(space.summary)}</p>
 ${body}
 ${tags}${links}
     <nav class="pager">
@@ -208,10 +210,15 @@ await mkdir(DIST, { recursive: true });
 const template = await readFile(join(SRC, 'index.template.html'), 'utf8');
 
 const noscriptItems = ordered
-  .map(
-    (space) =>
-      `    <li><a href="/p/${space.id}/">${escapeHtml(space.title)}</a><span>${escapeHtml(space.summary)}</span></li>`,
-  )
+  .map((space, index) => {
+    const number = String(index + 1).padStart(2, '0');
+    return (
+      `    <li><a href="/p/${space.id}/" data-id="${space.id}">` +
+      `<span class="index__no">${number}</span>` +
+      `<span class="index__title">${escapeHtml(space.title)}</span>` +
+      `<span class="index__at">${space.x},${space.y}</span></a></li>`
+    );
+  })
   .join('\n');
 
 const homeJsonLd = {
@@ -236,8 +243,9 @@ const homeJsonLd = {
 
 const inlineData = {
   site: { title: site.title, owner: site.owner },
-  spaces: ordered.map((space) => ({
+  spaces: ordered.map((space, index) => ({
     id: space.id,
+    n: index + 1,
     x: space.x,
     y: space.y,
     title: space.title,
@@ -361,7 +369,11 @@ await write(
 </head>
 <body>
   <main>
-    <a class="back" href="/">← back to the grid</a>
+    <div class="top">
+      <a href="/">← grid</a>
+      <span>404</span>
+      <span>&nbsp;</span>
+    </div>
     <h1>No space here</h1>
     <p>That coordinate is empty. The grid only exists where a project does.</p>
   </main>

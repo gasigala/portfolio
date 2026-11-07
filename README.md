@@ -93,9 +93,23 @@ grow without slowing down.
 | click a neighbour | walk there |
 | click the space you are on | open its page |
 | Enter (when a space has focus) | open its page |
+| `i` or the INDEX button | open the index of all spaces; Esc closes it |
 | Home | back to the first space |
 
-`#/<id>` or `#/<x>,<y>` in the URL restores your position on reload.
+`#/<id>` or `#/<x>,<y>` in the URL restores your position on reload, and the
+camera follows hash changes, so the browser's back button works.
+
+## Design
+
+The visual language is borrowed from [jai-paul.com](https://jai-paul.com/): pure
+black ground, a single warm accent (`#ff4a17`), hairline rules, and 10px
+uppercase monospace pinned to the corners as a HUD — name top-left, clock
+top-centre, `INDEX nn/tt` top-right, position and controls along the bottom.
+
+The grid itself is drawn as graph paper aligned to the world origin, with each
+plaque centred inside its square. Nothing is rounded, nothing glows, and there
+are no card shadows: the focused space is marked only by the accent border and a
+small diamond, the way the reference marks where you are standing.
 
 ## Deploy
 
