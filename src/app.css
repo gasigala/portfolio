@@ -5,8 +5,8 @@
   --ink: #d9d5cc;
   --muted: rgba(217, 213, 204, 0.42);
   --faint: rgba(217, 213, 204, 0.16);
-  --line: rgba(217, 213, 204, 0.14);
-  --grid: rgba(217, 213, 204, 0.055);
+  --line: rgba(217, 213, 204, 0.26);
+  --grid: rgba(217, 213, 204, 0.16);
   --accent: #ff4a17;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --dur: 560ms;
@@ -16,6 +16,12 @@
   --cell-h: 276px;
   --pitch-x: 340px;
   --pitch-y: 316px;
+
+  /* The world is a floor you stand on: the plane tips away from the camera,
+     and every plaque is counter-rotated to stand upright on it. */
+  --tilt: 50deg;
+  --persp: 1800px;
+  --horizon: 14%;
 }
 
 * { box-sizing: border-box; }
@@ -65,23 +71,60 @@ a { color: inherit; }
   overflow: hidden;
   touch-action: pan-y;
   background: var(--bg);
+  perspective: var(--persp);
+  perspective-origin: 50% var(--horizon);
+}
+
+/* the warm line where the floor meets the dark */
+#viewport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    58% 24% at 50% var(--horizon),
+    rgba(255, 74, 23, 0.07),
+    transparent 72%
+  );
+}
+
+/* near plaques pass under the HUD instead of cutting it off */
+#viewport::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--bg) 0%, rgba(0, 0, 0, 0.45) 3%, transparent 8%);
 }
 
 #track {
   position: absolute;
   top: 0; left: 0;
   width: 1px; height: 1px;
+  transform-origin: 0 0;
+  transform-style: preserve-3d;
   will-change: transform;
   transition: transform var(--dur) var(--ease);
 }
 
-/* graph paper: the array is visible, not implied */
+#plane {
+  position: absolute;
+  top: 0; left: 0;
+  width: 1px; height: 1px;
+  transform-origin: 0 0;
+  transform-style: preserve-3d;
+  transition: transform var(--dur) var(--ease);
+}
+
+/* graph paper: the array is visible, not implied — laid flat, receding */
 .lattice {
   position: absolute;
   background-image:
     linear-gradient(to right, var(--grid) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
   pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, #000 72%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 72%, transparent 100%);
 }
 
 /* ---------- spaces ---------- */
@@ -96,7 +139,9 @@ a { color: inherit; }
   color: var(--ink);
   text-decoration: none;
   opacity: 0;
-  contain: layout paint style;
+  contain: layout style;
+  transform-origin: 50% 100%;
+  transform: rotateX(calc(-1 * var(--tilt)));
   transition: opacity 280ms var(--ease), border-color 160ms var(--ease);
 }
 .space.is-visible { opacity: 1; }
@@ -136,6 +181,28 @@ a { color: inherit; }
     rgba(0, 0, 0, 0.5) 100%
   );
 }
+
+/* the plaque stands on a dark floor and throws its sleeve back down at you */
+.space__mirror {
+  position: absolute;
+  top: 100%;
+  left: -1px;
+  right: -1px;
+  height: 100%;
+  pointer-events: none;
+}
+.space__mirror img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleY(-1);
+  opacity: 0.26;
+  filter: grayscale(1) brightness(0.8);
+  -webkit-mask-image: linear-gradient(to top, #000, transparent 76%);
+  mask-image: linear-gradient(to top, #000, transparent 76%);
+}
+.space:hover .space__mirror img,
+.space.is-focused .space__mirror img { opacity: 0.42; }
 
 .space__index,
 .space__title,

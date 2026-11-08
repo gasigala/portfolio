@@ -9,9 +9,11 @@ bundler. Hosted as static assets on Cloudflare Workers.
 
 ## Why the layout is built this way
 
-The grid is real DOM, positioned in 2D and moved with a GPU transform, not a
-`<canvas>`. That keeps text selectable, findable with ctrl-F, readable by screen
-readers, and — most importantly — crawlable.
+The grid is real DOM, laid flat on a CSS 3D plane and moved with a GPU transform,
+not a `<canvas>`. The plane is tilted away from the camera so the world reads as a
+floor, and each plaque is counter-rotated to stand upright on it. That keeps text
+selectable, findable with ctrl-F, readable by screen readers, and — most
+importantly — crawlable.
 
 The grid alone would be invisible to search engines and AI agents, so every space
 also gets its own static page with its own URL:
@@ -166,10 +168,18 @@ black ground, a single warm accent (`#ff4a17`), hairline rules, and 10px
 uppercase monospace pinned to the corners as a HUD — name top-left, clock
 top-centre, `INDEX nn/tt` top-right, position and controls along the bottom.
 
-The grid itself is drawn as graph paper aligned to the world origin, with each
-plaque centred inside its square. Nothing is rounded, nothing glows, and there
-are no card shadows: the focused space is marked only by the accent border and a
-small diamond, the way the reference marks where you are standing.
+The grid itself is drawn as graph paper laid flat and receding to a vanishing
+point, with each plaque standing on the front edge of its square and throwing a
+faint, faded sleeve back into the floor. The camera keeps the space you are
+standing on at the bottom of the screen, so you walk into the grid rather than
+across it. Nothing is rounded, nothing glows, and there are no card shadows: the
+focused space is marked only by the accent border and a small diamond, the way
+the reference marks where you are standing.
+
+The floor is three CSS variables in [src/app.css](src/app.css): `--tilt` (how
+far the plane tips away), `--persp` (the camera distance) and `--horizon` (where
+the floor converges). Turn `--tilt` up for a more dramatic room, down for a
+flatter sheet.
 
 ## Deploy
 

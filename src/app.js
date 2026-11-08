@@ -5,6 +5,7 @@ const RADIUS = 3; // cells rendered around the focused space
 
 const viewport = document.getElementById('viewport');
 const track = document.getElementById('track');
+const plane = document.getElementById('plane');
 const lattice = track.querySelector('.lattice');
 const live = document.getElementById('live');
 const readout = document.getElementById('readout');
@@ -34,8 +35,10 @@ function measure() {
   metrics = {
     w,
     h,
-    pitchX: w + Math.round(w * 0.15),
-    pitchY: h + Math.round(h * 0.16),
+    // Extra room between cells: upright plaques need air behind them or each
+    // row covers the one in front once the floor falls away.
+    pitchX: Math.round(w * 1.35),
+    pitchY: Math.round(h * 1.55),
   };
 
   const style = document.documentElement.style;
@@ -43,16 +46,21 @@ function measure() {
   style.setProperty('--cell-h', `${metrics.h}px`);
   style.setProperty('--pitch-x', `${metrics.pitchX}px`);
   style.setProperty('--pitch-y', `${metrics.pitchY}px`);
+}
 
-  // Anchored to the world origin at an exact multiple of the pitch, so grid
-  // rules land on cell edges with no per-frame maths.
-  const kx = Math.ceil(3200 / metrics.pitchX);
-  const ky = Math.ceil(3200 / metrics.pitchY);
-  lattice.style.left = `${-kx * metrics.pitchX}px`;
-  lattice.style.top = `${-ky * metrics.pitchY}px`;
-  lattice.style.width = `${2 * kx * metrics.pitchX}px`;
-  lattice.style.height = `${2 * ky * metrics.pitchY}px`;
-  lattice.style.backgroundSize = `${metrics.pitchX}px ${metrics.pitchY}px`;
+// The floor only needs to exist as far as you can see. Keeping it bounded also
+// keeps it from crossing the camera plane, where a tilted element disappears.
+function layoutFloor(space) {
+  const { pitchX, pitchY } = metrics;
+  const columns = 10;
+  const behind = 8;
+  const ahead = 2;
+
+  lattice.style.left = `${(space.x - columns) * pitchX}px`;
+  lattice.style.top = `${(space.y - behind) * pitchY}px`;
+  lattice.style.width = `${columns * 2 * pitchX}px`;
+  lattice.style.height = `${(behind + ahead) * pitchY}px`;
+  lattice.style.backgroundSize = `${pitchX}px ${pitchY}px`;
 }
 
 function focused() {
@@ -62,13 +70,27 @@ function focused() {
 function applyCamera(animate) {
   const space = focused();
   if (!space) return;
-  // Centre on the graph-paper square, not the plaque inside it.
-  const cx = space.x * metrics.pitchX + metrics.pitchX / 2;
-  const cy = space.y * metrics.pitchY + metrics.pitchY / 2;
-  track.style.transition = animate && !reducedMotion.matches ? '' : 'none';
+
+  const { pitchX, pitchY } = metrics;
+  layoutFloor(space);
+
+  // The camera looks down a floor. The focused plaque stands on the front edge
+  // of its cell, so the pivot of the tilt is that plaque's base: it stays
+  // unscaled at the bottom of the screen while the rest falls away behind it.
+  const px = space.x * pitchX + pitchX / 2;
+  const py = space.y * pitchY + pitchY;
+  const anchor = viewport.clientHeight * 0.86;
+
+  const moving = animate && !reducedMotion.matches;
+  track.style.transition = moving ? '' : 'none';
+  plane.style.transition = moving ? '' : 'none';
+
   track.style.transform =
-    `translate3d(${Math.round(viewport.clientWidth / 2 - cx)}px, ` +
-    `${Math.round(viewport.clientHeight / 2 - cy)}px, 0)`;
+    `translate3d(${Math.round(viewport.clientWidth / 2 - px)}px, ` +
+    `${Math.round(anchor - py)}px, 0)`;
+  plane.style.transform =
+    `translate3d(${px}px, ${py}px, 0) rotateX(var(--tilt)) ` +
+    `translate3d(${-px}px, ${-py}px, 0)`;
 }
 
 /* ---------------- rendering ---------------- */
@@ -79,10 +101,12 @@ function createNode(space) {
   el.href = `/p/${space.id}/`;
   el.dataset.id = space.id;
   el.setAttribute('aria-label', `${space.title}. Space ${space.x}, ${space.y}. ${space.summary}`);
-  el.style.left = `${space.x * metrics.pitchX + (metrics.pitchX - metrics.w) / 2}px`;
-  el.style.top = `${space.y * metrics.pitchY + (metrics.pitchY - metrics.h) / 2}px`;
-  el.style.width = `${metrics.w}px`;
-  el.style.height = `${metrics.h}px`;
+  const { w, h, pitchX, pitchY } = metrics;
+  el.style.left = `${Math.round(space.x * pitchX + (pitchX - w) / 2)}px`;
+  // The plaque stands on the front edge of its cell, not centred in it.
+  el.style.top = `${Math.round(space.y * pitchY + pitchY - h)}px`;
+  el.style.width = `${w}px`;
+  el.style.height = `${h}px`;
 
   const number = document.createElement('span');
   number.className = 'space__index';
@@ -115,11 +139,22 @@ function createNode(space) {
     scrim.className = 'space__scrim';
     scrim.setAttribute('aria-hidden', 'true');
 
-    el.append(cover, scrim);
+    const mirror = document.createElement('span');
+    mirror.className = 'space__mirror';
+    mirror.setAttribute('aria-hidden', 'true');
+    const mirrorImage = document.createElement('img');
+    mirrorImage.src = space.cover;
+    mirrorImage.alt = '';
+    mirrorImage.loading = 'lazy';
+    mirrorImage.decoding = 'async';
+    mirrorImage.draggable = false;
+    mirror.append(mirrorImage);
+
+    el.append(cover, scrim, mirror);
     el.classList.add('space--media');
   }
 
-  track.append(el);
+  plane.append(el);
   requestAnimationFrame(() => el.classList.add('is-visible'));
   return el;
 }
