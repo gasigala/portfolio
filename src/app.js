@@ -363,8 +363,10 @@ viewport.addEventListener('pointerup', (event) => {
   const dy = event.clientY - swipeStart.y;
   swipeStart = null;
   if (Math.hypot(dx, dy) < 45) return;
-  if (Math.abs(dx) > Math.abs(dy)) move(Math.sign(dx), 0);
-  else move(0, Math.sign(dy));
+  // Touch is direct manipulation: the floor follows the finger, so the camera
+  // has to travel the opposite way. Mouse, trackpad and clicks are unaffected.
+  if (Math.abs(dx) > Math.abs(dy)) move(-Math.sign(dx), 0);
+  else move(0, -Math.sign(dy));
 });
 
 // Deep links can change without a reload (same-document navigation), so the
