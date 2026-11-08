@@ -11,6 +11,7 @@ const viewport = document.getElementById('viewport');
 const track = document.getElementById('track');
 const plane = document.getElementById('plane');
 const lattice = track.querySelector('.lattice');
+const floorCanvas = document.getElementById('floor');
 const terrain = track.querySelector('.terrain');
 const live = document.getElementById('live');
 const readout = document.getElementById('readout');
@@ -110,21 +111,112 @@ function layoutFloor(space) {
   const width = columns * 2 * pitchX;
   const height = (behind + ahead) * pitchY;
 
-  for (const layer of [terrain, lattice]) {
+  for (const layer of [floorCanvas, lattice]) {
+    if (!layer) continue;
     layer.style.left = `${left}px`;
     layer.style.top = `${top}px`;
     layer.style.width = `${width}px`;
     layer.style.height = `${height}px`;
   }
 
-  lattice.style.backgroundSize = `${pitchX * 4}px ${pitchY * 4}px`;
-  lattice.style.backgroundPosition = `${-left}px ${-top}px`;
-
-  // Counter the layer's own offset so the map keeps its world position while
-  // the floor window follows the camera.
-  terrain.style.backgroundSize = `${MAP.w}px ${MAP.h}px`;
-  terrain.style.backgroundPosition = `${MAP.x - left}px ${MAP.y - top}px`;
+  lattice.style.backgroundSize = `${pitchX}px ${pitchY}px`;
 }
+
+/* ---------------- floor synth ---------------- */
+
+// Hydra draws the floor. It runs its own GL context into #floor, which lies on
+// the same tilted plane as the grid, so the pattern is part of the world rather
+// than a screen overlay. The scene is ambient: it never depends on where you are.
+
+const FLOOR_FPS = 30;
+const FLOOR_TEXELS = 1024;
+
+let synth = null;
+let floorTimer = 0;
+let floorLast = 0;
+
+function floorAspect() {
+  const { pitchX, pitchY } = metrics;
+  return (20 * pitchX) / (10 * pitchY);
+}
+
+function drawFloor(dt) {
+  if (!synth) return;
+  try {
+    synth.tick(dt);
+  } catch (error) {
+    stopFloor();
+    console.warn('floor synth stopped:', error);
+  }
+}
+
+function startFloor() {
+  if (!synth || floorTimer) return;
+  floorLast = performance.now();
+  floorTimer = setInterval(() => {
+    const now = performance.now();
+    const dt = now - floorLast;
+    floorLast = now;
+    drawFloor(dt);
+  }, 1000 / FLOOR_FPS);
+}
+
+function stopFloor() {
+  if (floorTimer) clearInterval(floorTimer);
+  floorTimer = 0;
+}
+
+function syncFloor() {
+  if (!synth) return;
+  if (reducedMotion.matches || document.hidden) {
+    stopFloor();
+    drawFloor(1000 / FLOOR_FPS); // one still frame
+  } else {
+    startFloor();
+  }
+}
+
+function initFloor() {
+  if (!floorCanvas || typeof window.Hydra !== 'function') return;
+
+  const aspect = floorAspect();
+  const width = FLOOR_TEXELS;
+  const height = Math.max(2, Math.round(width / aspect));
+
+  try {
+    synth = new window.Hydra({
+      canvas: floorCanvas,
+      width,
+      height,
+      detectAudio: false,
+      enableStreamCapture: false,
+      makeGlobal: false,
+      autoLoop: false,
+      numSources: 0,
+      numOutputs: 1,
+    });
+  } catch (error) {
+    console.warn('floor synth unavailable:', error);
+    synth = null;
+    return;
+  }
+
+  const s = synth.synth;
+  synth.setResolution(width, height);
+
+  // Ambient: a slow warm lattice that drifts regardless of where you stand.
+  // Brightness is handled by the canvas opacity in CSS, so this stays simple.
+  s.osc(7, 0.04, 1.1)
+    .kaleid(6)
+    .rotate(0.12, 0.008)
+    .color(1, 0.4, 0.12)
+    .out(s.o0);
+
+  syncFloor();
+}
+
+document.addEventListener('visibilitychange', syncFloor);
+reducedMotion.addEventListener('change', syncFloor);
 
 function focused() {
   return byId.get(focusedId);
@@ -202,18 +294,7 @@ function createNode(space) {
     scrim.className = 'space__scrim';
     scrim.setAttribute('aria-hidden', 'true');
 
-    const mirror = document.createElement('span');
-    mirror.className = 'space__mirror';
-    mirror.setAttribute('aria-hidden', 'true');
-    const mirrorImage = document.createElement('img');
-    mirrorImage.src = space.cover;
-    mirrorImage.alt = '';
-    mirrorImage.loading = 'lazy';
-    mirrorImage.decoding = 'async';
-    mirrorImage.draggable = false;
-    mirror.append(mirrorImage);
-
-    el.append(cover, scrim, mirror);
+    el.append(cover, scrim);
     el.classList.add('space--media');
   }
 
@@ -488,6 +569,7 @@ function boot() {
   measure();
   applyCamera(false);
   renderVisible();
+  initFloor();
 
   requestAnimationFrame(() => {
     applyCamera(false);

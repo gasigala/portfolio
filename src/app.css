@@ -116,24 +116,20 @@ a { color: inherit; }
   transition: transform var(--dur) var(--ease);
 }
 
-/* the floor is a plate you walk across: a topographic map under the grid */
-.terrain {
+/* the floor is a live synth: a canvas lying flat on the plane */
+.floor {
   position: absolute;
-  background-image: url('/img/terrain.webp');
-  background-repeat: no-repeat;
-  opacity: 0.55;
+  top: 0; left: 0;
+  display: block;
+  opacity: 0.18;
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(to top, #000 58%, transparent 96%);
-  mask-image: linear-gradient(to top, #000 58%, transparent 96%);
 }
 
-/* graph paper with a hand-cut edge, painted by makeGridTile() */
+/* graph paper: the array is visible, not implied — laid flat, receding */
 .lattice {
   position: absolute;
   background-repeat: repeat;
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(to top, #000 72%, transparent 100%);
-  mask-image: linear-gradient(to top, #000 72%, transparent 100%);
 }
 
 /* ---------- spaces ---------- */
@@ -173,12 +169,11 @@ a { color: inherit; }
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: grayscale(1) contrast(1.1);
-  opacity: 0.55;
-  transition: opacity 220ms var(--ease), filter 220ms var(--ease);
+  opacity: 0.8;
+  transition: opacity 220ms var(--ease);
 }
-.space:hover .space__cover { opacity: 0.7; }
-.space.is-focused .space__cover { opacity: 1; filter: none; }
+.space:hover .space__cover { opacity: 0.95; }
+.space.is-focused .space__cover { opacity: 1; }
 
 .space__scrim {
   position: absolute;
@@ -190,28 +185,6 @@ a { color: inherit; }
     rgba(0, 0, 0, 0.5) 100%
   );
 }
-
-/* the plaque stands on a dark floor and throws its sleeve back down at you */
-.space__mirror {
-  position: absolute;
-  top: 100%;
-  left: -1px;
-  right: -1px;
-  height: 100%;
-  pointer-events: none;
-}
-.space__mirror img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scaleY(-1);
-  opacity: 0.26;
-  filter: grayscale(1) brightness(0.8);
-  -webkit-mask-image: linear-gradient(to top, #000, transparent 76%);
-  mask-image: linear-gradient(to top, #000, transparent 76%);
-}
-.space:hover .space__mirror img,
-.space.is-focused .space__mirror img { opacity: 0.42; }
 
 .space__index,
 .space__title,
