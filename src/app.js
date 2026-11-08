@@ -3,10 +3,15 @@
 
 const RADIUS = 3; // cells rendered around the focused space
 
+// The map plate is pinned in world coordinates, not to the camera, so the
+// terrain stays under the same squares as you walk.
+const MAP = { x: -2600, y: -2465, w: 5200, h: 4929 };
+
 const viewport = document.getElementById('viewport');
 const track = document.getElementById('track');
 const plane = document.getElementById('plane');
 const lattice = track.querySelector('.lattice');
+const terrain = track.querySelector('.terrain');
 const live = document.getElementById('live');
 const readout = document.getElementById('readout');
 const counter = document.getElementById('counter');
@@ -25,6 +30,48 @@ let metrics = { w: 300, h: 276, pitchX: 340, pitchY: 316 };
 const pad = (value) => String(value).padStart(2, '0');
 
 /* ---------------- layout ---------------- */
+
+// A 4x4-cell tile of hand-cut grid lines. Jitter is zero on every cell
+// boundary, so adjacent cells and tiles meet exactly; the tile is pinned to
+// world coordinates in layoutFloor().
+function makeGridTile() {
+  const cells = 4;
+  const unit = 400;
+  const size = cells * unit;
+  const step = 28;
+  const amp = 3.4;
+
+  let seed = 0x2f6e2b1;
+  const rand = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const jitter = (v) => (v % unit === 0 ? 0 : (rand() * 2 - 1) * amp);
+
+  const paths = [];
+  for (let i = 0; i < cells; i += 1) {
+    const y = i * unit;
+    let d = `M0 ${y}`;
+    for (let x = step; x < size; x += step) d += ` L${x} ${y + jitter(x)}`;
+    paths.push(`${d} L${size} ${y}`);
+  }
+  for (let i = 0; i < cells; i += 1) {
+    const x = i * unit;
+    let d = `M${x} 0`;
+    for (let y = step; y < size; y += step) d += ` L${x + jitter(y)} ${y}`;
+    paths.push(`${d} L${x} ${size}`);
+  }
+
+  const color = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" ` +
+    `viewBox="0 0 ${size} ${size}"><g fill="none" stroke="${color}" stroke-width="1">` +
+    paths.map((d) => `<path d="${d}"/>`).join('') +
+    '</g></svg>';
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
 
 function measure() {
   // Size cells so a lane of neighbours is always in frame: an array you cannot
@@ -46,6 +93,8 @@ function measure() {
   style.setProperty('--cell-h', `${metrics.h}px`);
   style.setProperty('--pitch-x', `${metrics.pitchX}px`);
   style.setProperty('--pitch-y', `${metrics.pitchY}px`);
+
+  lattice.style.backgroundImage = makeGridTile();
 }
 
 // The floor only needs to exist as far as you can see. Keeping it bounded also
@@ -56,11 +105,25 @@ function layoutFloor(space) {
   const behind = 8;
   const ahead = 2;
 
-  lattice.style.left = `${(space.x - columns) * pitchX}px`;
-  lattice.style.top = `${(space.y - behind) * pitchY}px`;
-  lattice.style.width = `${columns * 2 * pitchX}px`;
-  lattice.style.height = `${(behind + ahead) * pitchY}px`;
-  lattice.style.backgroundSize = `${pitchX}px ${pitchY}px`;
+  const left = (space.x - columns) * pitchX;
+  const top = (space.y - behind) * pitchY;
+  const width = columns * 2 * pitchX;
+  const height = (behind + ahead) * pitchY;
+
+  for (const layer of [terrain, lattice]) {
+    layer.style.left = `${left}px`;
+    layer.style.top = `${top}px`;
+    layer.style.width = `${width}px`;
+    layer.style.height = `${height}px`;
+  }
+
+  lattice.style.backgroundSize = `${pitchX * 4}px ${pitchY * 4}px`;
+  lattice.style.backgroundPosition = `${-left}px ${-top}px`;
+
+  // Counter the layer's own offset so the map keeps its world position while
+  // the floor window follows the camera.
+  terrain.style.backgroundSize = `${MAP.w}px ${MAP.h}px`;
+  terrain.style.backgroundPosition = `${MAP.x - left}px ${MAP.y - top}px`;
 }
 
 function focused() {

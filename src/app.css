@@ -116,12 +116,21 @@ a { color: inherit; }
   transition: transform var(--dur) var(--ease);
 }
 
-/* graph paper: the array is visible, not implied — laid flat, receding */
+/* the floor is a plate you walk across: a topographic map under the grid */
+.terrain {
+  position: absolute;
+  background-image: url('/img/terrain.webp');
+  background-repeat: no-repeat;
+  opacity: 0.55;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, #000 58%, transparent 96%);
+  mask-image: linear-gradient(to top, #000 58%, transparent 96%);
+}
+
+/* graph paper with a hand-cut edge, painted by makeGridTile() */
 .lattice {
   position: absolute;
-  background-image:
-    linear-gradient(to right, var(--grid) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-repeat: repeat;
   pointer-events: none;
   -webkit-mask-image: linear-gradient(to top, #000 72%, transparent 100%);
   mask-image: linear-gradient(to top, #000 72%, transparent 100%);
