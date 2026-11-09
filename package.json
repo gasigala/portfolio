@@ -13,6 +13,7 @@
     "check": "node build/check.mjs"
   },
   "devDependencies": {
+    "hydra-synth": "^1.4.0",
     "wrangler": "^4.0.0"
   }
 }

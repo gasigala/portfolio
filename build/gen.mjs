@@ -509,4 +509,13 @@ for (const asset of ['app.css', 'app.js', '_headers']) {
   await copyFile(join(SRC, asset), join(DIST, asset));
 }
 
+// The floor synth is a vendored UMD bundle: a devDependency copied in at build
+// time so the site itself still has no runtime dependencies.
+const HYDRA = join(ROOT, 'node_modules', 'hydra-synth', 'dist', 'hydra-synth.js');
+try {
+  await copyFile(HYDRA, join(DIST, 'hydra-synth.js'));
+} catch (error) {
+  throw new Error(`hydra-synth is not installed: run npm install (${error.message})`);
+}
+
 console.log(`built ${spaces.length} spaces -> dist/`);

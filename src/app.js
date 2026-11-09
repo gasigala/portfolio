@@ -3,10 +3,16 @@
 
 const RADIUS = 3; // cells rendered around the focused space
 
+// The map plate is pinned in world coordinates, not to the camera, so the
+// terrain stays under the same squares as you walk.
+const MAP = { x: -2600, y: -2465, w: 5200, h: 4929 };
+
 const viewport = document.getElementById('viewport');
 const track = document.getElementById('track');
 const plane = document.getElementById('plane');
 const lattice = track.querySelector('.lattice');
+const floorCanvas = document.getElementById('floor');
+const terrain = track.querySelector('.terrain');
 const live = document.getElementById('live');
 const readout = document.getElementById('readout');
 const counter = document.getElementById('counter');
@@ -25,6 +31,48 @@ let metrics = { w: 300, h: 276, pitchX: 340, pitchY: 316 };
 const pad = (value) => String(value).padStart(2, '0');
 
 /* ---------------- layout ---------------- */
+
+// A 4x4-cell tile of hand-cut grid lines. Jitter is zero on every cell
+// boundary, so adjacent cells and tiles meet exactly; the tile is pinned to
+// world coordinates in layoutFloor().
+function makeGridTile() {
+  const cells = 4;
+  const unit = 400;
+  const size = cells * unit;
+  const step = 28;
+  const amp = 3.4;
+
+  let seed = 0x2f6e2b1;
+  const rand = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const jitter = (v) => (v % unit === 0 ? 0 : (rand() * 2 - 1) * amp);
+
+  const paths = [];
+  for (let i = 0; i < cells; i += 1) {
+    const y = i * unit;
+    let d = `M0 ${y}`;
+    for (let x = step; x < size; x += step) d += ` L${x} ${y + jitter(x)}`;
+    paths.push(`${d} L${size} ${y}`);
+  }
+  for (let i = 0; i < cells; i += 1) {
+    const x = i * unit;
+    let d = `M${x} 0`;
+    for (let y = step; y < size; y += step) d += ` L${x + jitter(y)} ${y}`;
+    paths.push(`${d} L${x} ${size}`);
+  }
+
+  const color = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" ` +
+    `viewBox="0 0 ${size} ${size}"><g fill="none" stroke="${color}" stroke-width="1">` +
+    paths.map((d) => `<path d="${d}"/>`).join('') +
+    '</g></svg>';
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
 
 function measure() {
   // Size cells so a lane of neighbours is always in frame: an array you cannot
@@ -46,6 +94,8 @@ function measure() {
   style.setProperty('--cell-h', `${metrics.h}px`);
   style.setProperty('--pitch-x', `${metrics.pitchX}px`);
   style.setProperty('--pitch-y', `${metrics.pitchY}px`);
+
+  lattice.style.backgroundImage = makeGridTile();
 }
 
 // The floor only needs to exist as far as you can see. Keeping it bounded also
@@ -56,12 +106,326 @@ function layoutFloor(space) {
   const behind = 8;
   const ahead = 2;
 
-  lattice.style.left = `${(space.x - columns) * pitchX}px`;
-  lattice.style.top = `${(space.y - behind) * pitchY}px`;
-  lattice.style.width = `${columns * 2 * pitchX}px`;
-  lattice.style.height = `${(behind + ahead) * pitchY}px`;
+  const left = (space.x - columns) * pitchX;
+  const top = (space.y - behind) * pitchY;
+  const width = columns * 2 * pitchX;
+  const height = (behind + ahead) * pitchY;
+
+  for (const layer of [floorCanvas, lattice]) {
+    if (!layer) continue;
+    layer.style.left = `${left}px`;
+    layer.style.top = `${top}px`;
+    layer.style.width = `${width}px`;
+    layer.style.height = `${height}px`;
+  }
+
   lattice.style.backgroundSize = `${pitchX}px ${pitchY}px`;
 }
+
+/* ---------------- floor synth ---------------- */
+
+// Hydra draws the floor. It runs its own GL context into #floor, which lies on
+// the same tilted plane as the grid, so the pattern is part of the world rather
+// than a screen overlay. The scene is ambient: it never depends on where you are.
+
+const FLOOR_FPS = 30;
+const FLOOR_TEXELS = 1024;
+
+let synth = null;
+let floorTimer = 0;
+let floorLast = 0;
+
+function floorAspect() {
+  const { pitchX, pitchY } = metrics;
+  return (20 * pitchX) / (10 * pitchY);
+}
+
+function drawFloor(dt) {
+  if (!synth) return;
+  try {
+    synth.tick(dt);
+  } catch (error) {
+    stopFloor();
+    console.warn('floor synth stopped:', error);
+  }
+}
+
+function startFloor() {
+  if (!synth || floorTimer) return;
+  floorLast = performance.now();
+  floorTimer = setInterval(() => {
+    const now = performance.now();
+    const dt = now - floorLast;
+    floorLast = now;
+    drawFloor(dt);
+  }, 1000 / FLOOR_FPS);
+}
+
+function stopFloor() {
+  if (floorTimer) clearInterval(floorTimer);
+  floorTimer = 0;
+}
+
+function syncFloor() {
+  if (!synth) return;
+  if (reducedMotion.matches || document.hidden) {
+    stopFloor();
+    drawFloor(1000 / FLOOR_FPS); // one still frame
+  } else {
+    startFloor();
+  }
+}
+
+/* ---------------- floor scenes ---------------- */
+
+// Each scene paints the floor once, ending with .out(field.o0). One is picked
+// at random on load; ?scene=<name> forces a specific one for checking.
+// `field` is synth.synth: hydra's API surface (osc, noise, src, o0, time, ...).
+// Scenes differ wildly in brightness, so each sets its own canvas opacity.
+
+const FLOOR_SCENES = [
+  {
+    name: 'lattice',
+    opacity: 0.18,
+    build(field) {
+      field.osc(7, 0.04, 1.1)
+        .kaleid(6)
+        .rotate(0.12, 0.008)
+        .color(1, 0.4, 0.12)
+        .out(field.o0);
+    },
+  },
+  {
+    name: 'interference',
+    opacity: 0.18,
+    build(field) {
+      field.osc(100, -0.0018, 0.17)
+        .diff(field.osc(20, 0.00008).rotate(Math.PI / 0.00003))
+        .modulateScale(
+          field.noise(1.5, 0.18).modulateScale(field.osc(13).rotate(() => Math.sin(field.time / 22))),
+          3,
+        )
+        .color(11, 0.5, 0.4, 0.9, 0.2, 0.011, 5, 22, 0.5, -1)
+        .contrast(1.4)
+        .add(field.src(field.o0).modulate(field.o0, 0.04), 0.6, 0.9)
+        .invert()
+        .brightness(0.0003, 2)
+        .contrast(0.5, 2, 0.1, 2)
+        .color(4, -2, 0.1)
+        .modulateScale(field.osc(2), -0.2, 2, 1, 0.3)
+        .posterize(200)
+        .rotate(1, 0.2, 0.01, 0.001)
+        .color(22, -2, 0.5, 0.5, 0.0001, 0.1, 0.2, 8)
+        .contrast(0.18, 0.3, 0.1, 0.2, 0.03, 1)
+        .brightness(0.0001, -1, 10)
+        .out(field.o0);
+    },
+  },
+  {
+    name: 'prism',
+    opacity: 0.17,
+    build(field) {
+      const r = (min = 0, max = 1) => Math.random() * (max - min) + min;
+      field.solid(1, 1, 1)
+        .diff(
+          field
+            .shape([0.231, 4, 4, 24].smooth().fast(0.5), r(0.6, 0.93), 0.09)
+            .repeat(20, 10.605),
+        )
+        .modulateScale(field.osc(8).rotate(r(-0.5, 0.653)), 0.52)
+        .add(
+          field
+            .src(field.o0)
+            .scale(0.965)
+            .rotate(0.012 * Math.round(r(-2, 1)))
+            .color(r(), r(), r())
+            .modulateRotate(field.o0, r(0, 0.5))
+            .brightness(0.15),
+          0.7,
+        )
+        .out(field.o0);
+      field.speed = 1.2;
+    },
+  },
+  {
+    name: 'petals',
+    opacity: 0.07,
+    build(field) {
+      field
+        .shape(99, 0.15, 0.5)
+        .color(0, 1, 2)
+        .diff(
+          field.shape(240, 0.5, 0).scrollX(0.05).rotate(() => field.time / 10).color(1, 0, 0.75),
+        )
+        .diff(
+          field.shape(99, 0.4, 0.002).scrollX(0.1).rotate(() => field.time / 2.313).color(1, 0, 0.75),
+        )
+        .diff(
+          field.shape(99, 0.3, 0.002).scrollX(0.15).rotate(() => field.time / 30).color(1, 0, 0.75),
+        )
+        .diff(
+          field.shape(99, 0.2, 0.002).scrollX(0.2).rotate(() => field.time / 40).color(1, 0, 0.75),
+        )
+        .diff(
+          field.shape(99, 0.1, 0.002).scrollX(0.25).rotate(() => field.time / 50).color(1, 0, 0.75),
+        )
+        .modulateScale(
+          field.shape(240, 0.5, 0).scrollX(0.05).rotate(() => field.time / 10),
+          () => Math.sin(field.time / 3) * 0.2 + 0.2,
+        )
+        .scale(1.6, 0.6, 1)
+        .out(field.o0);
+    },
+  },
+  {
+    name: 'feedback',
+    opacity: 0.33,
+    build(field) {
+      // The snippet reads a.fft, hydra's microphone feed. The floor runs with
+      // detectAudio: false, so this stands in a spectrum that drifts with time.
+      const a = {
+        get fft() {
+          const t = field.time;
+          return [
+            0.3 + 0.2 * Math.sin(t / 3),
+            0.35 + 0.2 * Math.sin(t / 5),
+            0.4 + 0.2 * Math.sin(t / 7),
+            0.2,
+          ];
+        },
+      };
+
+      field
+        .noise()
+        .color(() => a.fft[2] * 2, 0, 0.6)
+        .modulate(field.noise(() => a.fft[0] * 7.28))
+        .scale(() => a.fft[2] * 5)
+        .layer(
+          field
+            .src(field.o0)
+            .mask(field.osc(10).modulateRotate(field.osc(), 90, 0.702))
+            .scale(() => a.fft[0] * 2)
+            .luma(0.2, 0.471),
+        )
+        .blend(field.o0)
+        .out(field.o0);
+
+      field
+        .osc()
+        .modulate(field.noise(() => a.fft[1] + 5))
+        .color(1, 0.298, 0.725)
+        .out(field.o1);
+
+      field
+        .src(field.o0)
+        .modulate(field.o1)
+        .layer(field.src(field.o1).mask(field.o1).saturate(7))
+        .modulateRotate(field.o1)
+        .rotate(() => ((field.time % 360) * 0.05))
+        .out(field.o2);
+
+      field.render(field.o2);
+    },
+  },
+  {
+    name: 'kaleido',
+    opacity: 0.85,
+    build(field) {
+      field
+        .noise(25.861)
+        .colorama(1)
+        .posterize(2)
+        .kaleid(50)
+        .mask(field.shape(25, 0.25).modulateScale(field.noise(400.5, 0.5)))
+        .mask(field.shape(400, 1, 2.985))
+        .modulateScale(field.osc(6, 0.125, 0.05).kaleid(50))
+        .mult(field.osc(19.042, 0.05, 4.418).kaleid(50), 0.25)
+        .scale(1.75, 0.65, 0.5)
+        .modulate(field.noise(0.535))
+        .saturate(6)
+        .posterize(4, 0.316)
+        .scale(1.5)
+        .out(field.o0);
+    },
+  },
+  {
+    name: 'drift',
+    opacity: 0.7,
+    build(field) {
+      field
+        .osc(20, 0.03, 1.7)
+        .kaleid()
+        .mult(field.osc(20, 0.001, 0.285).rotate(1.58))
+        .blend(field.o0, 0.94)
+        .modulateScale(field.osc(10, 0), -0.03)
+        .scale(0.8, () => 1.356 + 0.132 * Math.sin(0.054 * field.time))
+        .out(field.o0);
+    },
+  },
+];
+
+function buildScene(field) {
+  const wanted = new URLSearchParams(location.search).get('scene');
+  const chosen = wanted
+    ? FLOOR_SCENES.find((scene) => scene.name === wanted)
+    : FLOOR_SCENES[Math.floor(Math.random() * FLOOR_SCENES.length)];
+
+  // A scene can throw while building; fall through to the others rather than
+  // leave the floor blank. Each attempt starts from a clean output and speed.
+  const order = chosen ? [chosen, ...FLOOR_SCENES.filter((other) => other !== chosen)] : FLOOR_SCENES;
+  for (const scene of order) {
+    try {
+      field.speed = 1;
+      field.render(field.o0);
+      scene.build(field);
+      if (floorCanvas) floorCanvas.style.opacity = String(scene.opacity);
+      return scene.name;
+    } catch (error) {
+      console.warn(`floor scene "${scene.name}" failed:`, error);
+    }
+  }
+  return null;
+}
+
+function initFloor() {
+  if (!floorCanvas || typeof window.Hydra !== 'function') return;
+
+  const aspect = floorAspect();
+  const width = FLOOR_TEXELS;
+  const height = Math.max(2, Math.round(width / aspect));
+
+  try {
+    synth = new window.Hydra({
+      canvas: floorCanvas,
+      width,
+      height,
+      detectAudio: false,
+      enableStreamCapture: false,
+      makeGlobal: false,
+      autoLoop: false,
+      numSources: 0,
+      numOutputs: 4,
+    });
+  } catch (error) {
+    console.warn('floor synth unavailable:', error);
+    synth = null;
+    return;
+  }
+
+  const field = synth.synth;
+  synth.setResolution(width, height);
+
+  // Every name is reached through the field object: the synth is created with
+  // makeGlobal: false, so `osc`, `noise`, `src`, `time` and `o0` are not
+  // globals here. Time comes from field.time, which hydra updates on each tick.
+  const scene = buildScene(field);
+  if (scene) document.documentElement.dataset.floor = scene;
+
+  syncFloor();
+}
+
+document.addEventListener('visibilitychange', syncFloor);
+reducedMotion.addEventListener('change', syncFloor);
 
 function focused() {
   return byId.get(focusedId);
@@ -139,18 +503,7 @@ function createNode(space) {
     scrim.className = 'space__scrim';
     scrim.setAttribute('aria-hidden', 'true');
 
-    const mirror = document.createElement('span');
-    mirror.className = 'space__mirror';
-    mirror.setAttribute('aria-hidden', 'true');
-    const mirrorImage = document.createElement('img');
-    mirrorImage.src = space.cover;
-    mirrorImage.alt = '';
-    mirrorImage.loading = 'lazy';
-    mirrorImage.decoding = 'async';
-    mirrorImage.draggable = false;
-    mirror.append(mirrorImage);
-
-    el.append(cover, scrim, mirror);
+    el.append(cover, scrim);
     el.classList.add('space--media');
   }
 
@@ -425,6 +778,12 @@ function boot() {
   measure();
   applyCamera(false);
   renderVisible();
+  // The floor is decoration: a synth failure must never take the grid down.
+  try {
+    initFloor();
+  } catch (error) {
+    console.warn('floor synth skipped:', error);
+  }
 
   requestAnimationFrame(() => {
     applyCamera(false);
