@@ -318,6 +318,21 @@ const noscriptItems = ordered
   })
   .join('\n');
 
+const spaceItems = ordered
+  .map((space, index) => {
+    const cover = coverOf(space);
+    const number = String(index + 1).padStart(2, '0');
+    return `    <a class="space" href="/p/${space.id}/" data-id="${space.id}" data-x="${space.x}" data-y="${space.y}">
+      <img class="space__cover" src="${escapeHtml(cover.src)}" alt="" loading="lazy" decoding="async">
+      <span class="space__scrim" aria-hidden="true"></span>
+      <span class="space__index">${number} / ${String(ordered.length).padStart(2, '0')}</span>
+      <h2 class="space__title">${escapeHtml(space.title)}</h2>
+      <p class="space__meta">${escapeHtml(space.summary)}</p>
+      <span class="space__marker" aria-hidden="true"></span>
+    </a>`;
+  })
+  .join('\n');
+
 const homeJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'ProfilePage',
@@ -359,6 +374,7 @@ const home = template
   .replaceAll('{{URL}}', siteUrl)
   .replaceAll('{{JSONLD}}', scriptJson(homeJsonLd))
   .replaceAll('{{NOSCRIPT}}', noscriptItems)
+  .replaceAll('{{SPACES}}', spaceItems)
   .replaceAll('{{DATA}}', scriptJson(inlineData));
 
 await write('index.html', home);
