@@ -37,7 +37,7 @@ src/
   projects.json          all content, one object per space
   index.template.html    shell for the grid
   app.css
-  app.js                 grid engine (camera, virtualization, input)
+  app.js                 grid engine (camera, floor synth, input)
   worker.js              static assets + markdown negotiation
   _headers               security headers
 public/                  served as-is: real covers, favicons, fonts
@@ -169,8 +169,7 @@ uppercase monospace pinned to the corners as a HUD — name top-left, clock
 top-centre, `INDEX nn/tt` top-right, position and controls along the bottom.
 
 The grid itself is drawn as graph paper laid flat and receding to a vanishing
-point, with each plaque standing on the front edge of its square and throwing a
-faint, faded sleeve back into the floor. The camera keeps the space you are
+point, with each plaque standing on the front edge of its square. The camera keeps the space you are
 standing on at the bottom of the screen, so you walk into the grid rather than
 across it. Nothing is rounded, nothing glows, and there are no card shadows: the
 focused space is marked only by the accent border and a small diamond, the way
