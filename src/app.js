@@ -1,7 +1,5 @@
 // Grid engine: a camera over a sparse 2D world of project spaces.
 
-const RADIUS = 3;
-
 const viewport = document.getElementById('viewport');
 const plane = document.getElementById('plane');
 const floorCanvas = document.getElementById('floor');
@@ -23,23 +21,11 @@ const spaces = Array.from(plane.querySelectorAll('.space'), (el, i) => ({
   title: el.querySelector('.space__title').textContent,
 }));
 const byId = new Map(spaces.map((s) => [s.id, s]));
+const total = pad(spaces.length);
 let current = null;
 let pitchX = 340;
 let pitchY = 316;
-
-function measure() {
-  const base = Math.min(viewport.clientWidth / 4.6, viewport.clientHeight / 3.4);
-  const w = Math.round(Math.min(Math.max(base, 190), 330));
-  const h = Math.round(w * 0.9);
-  pitchX = Math.round(w * 1.35);
-  pitchY = Math.round(h * 1.55);
-
-  const style = document.documentElement.style;
-  style.setProperty('--cell-w', `${w}px`);
-  style.setProperty('--cell-h', `${h}px`);
-  style.setProperty('--pitch-x', `${pitchX}px`);
-  style.setProperty('--pitch-y', `${pitchY}px`);
-}
+let synth = null;
 
 /* ---------------- floor scenes ---------------- */
 
@@ -204,8 +190,6 @@ const FLOOR_SCENES = [
   },
 ];
 
-let synth = null;
-
 function initFloor() {
   if (!floorCanvas || typeof window.Hydra !== 'function') return;
   try {
@@ -239,6 +223,8 @@ function applyCamera(animate) {
   if (!current) return;
   const px = (current.x + 0.5) * pitchX;
   const py = (current.y + 1) * pitchY;
+  plane.style.setProperty('--cx', current.x);
+  plane.style.setProperty('--cy', current.y);
   if (!animate) plane.style.transition = 'none';
   plane.style.transform =
     `translate3d(${Math.round(viewport.clientWidth / 2)}px, ${Math.round(viewport.clientHeight * 0.86)}px, 0) ` +
@@ -249,6 +235,23 @@ function applyCamera(animate) {
   }
 }
 
+function layout() {
+  const base = Math.min(viewport.clientWidth / 4.6, viewport.clientHeight / 3.4);
+  const w = Math.round(Math.min(Math.max(base, 190), 330));
+  const h = Math.round(w * 0.9);
+  pitchX = Math.round(w * 1.35);
+  pitchY = Math.round(h * 1.95);
+
+  const style = document.documentElement.style;
+  style.setProperty('--cell-w', `${w}px`);
+  style.setProperty('--cell-h', `${h}px`);
+  style.setProperty('--pitch-x', `${pitchX}px`);
+  style.setProperty('--pitch-y', `${pitchY}px`);
+
+  applyCamera(false);
+  synth?.setResolution(viewport.clientWidth, viewport.clientHeight);
+}
+
 function focusSpace(id, { animate = true, focusDom = false } = {}) {
   const space = byId.get(id);
   if (!space) return;
@@ -257,14 +260,14 @@ function focusSpace(id, { animate = true, focusDom = false } = {}) {
 
   for (const s of spaces) {
     const on = s === space;
-    const near = Math.abs(s.x - space.x) <= RADIUS && Math.abs(s.y - space.y) <= RADIUS;
+    const near = Math.abs(s.x - space.x) <= 4 && s.y - space.y <= 1 && space.y - s.y <= 5;
     s.el.classList.toggle('is-focused', on);
     s.el.classList.toggle('is-visible', near);
     s.el.tabIndex = on ? 0 : -1;
   }
 
   readout.textContent = `space ${space.x},${space.y} — ${space.title}`;
-  counter.textContent = `${space.n}/${pad(spaces.length)}`;
+  counter.textContent = `${space.n}/${total}`;
   live.textContent = `${space.title}. Space ${space.x}, ${space.y}.`;
   history.replaceState(null, '', `#/${id}`);
   if (focusDom) space.el.focus({ preventScroll: true });
@@ -397,8 +400,7 @@ function initialSpace() {
 }
 
 function tickClock() {
-  const now = new Date();
-  clock.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  clock.textContent = new Date().toTimeString().slice(0, 5);
 }
 
 window.addEventListener('hashchange', () => {
@@ -406,17 +408,10 @@ window.addEventListener('hashchange', () => {
   if (space && space !== current) focusSpace(space.id);
 });
 
-window.addEventListener('resize', () => {
-  measure();
-  applyCamera(false);
-  synth?.setResolution(viewport.clientWidth, viewport.clientHeight);
-});
+window.addEventListener('resize', layout);
 
 tickClock();
 setInterval(tickClock, 15000);
-measure();
+layout();
 focusSpace(initialSpace().id, { animate: false });
 initFloor();
-requestAnimationFrame(() => {
-  document.documentElement.dataset.ready = 'true';
-});
